@@ -1,3 +1,4 @@
+import pydantic.v1
 from fastapi import FastAPI, HTTPException
 
 import requests
@@ -9,7 +10,6 @@ from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTem
 import uvicorn
 from langserve import add_routes
 from dotenv import load_dotenv
-#defulat v2 below for fastapi
 import os
 from pydantic import BaseModel
 
@@ -27,14 +27,18 @@ load_dotenv('.env')
 
 #for langchain use v1 model
 #will try to infere name from bio
-class Bio_Langchain(BaseModel):
+class BioSanitationPromptSchema(pydantic.v1.BaseModel):
     person_name: str
-    person_bio: str
+    sanitized_bio: str
+class BioSanitationFastAPI(pydantic.BaseModel):
+    person_name: str
+    sanitized_bio: str
+
 
 app = FastAPI()
 
-@app.post("/shorten/bio")
-def send_bio(bio: Bio_Langchain):
+
+async def LLM():
     SYSTEM_PROMPT_FILTERING = SystemMessagePromptTemplate.from_template(
         """
             Here is an unverified bio for a person. Please summarize it using sparse priming representation 
@@ -57,9 +61,15 @@ def send_bio(bio: Bio_Langchain):
     ])
 
     model = ChatOpenAI(model="gpt-4o", temperature=0)
-    chain = prompt | model.with_structured_output(Bio_Langchain)
-    sanitized_bio = chain.invoke({"name": bio.person_name, "unverified_bio": bio.person_bio})
-    return {"output": sanitized_bio}
+    chain = prompt | model.with_structured_output(BioSanitationPromptSchema)
+    return chain
+
+
+@app.post("/shorten/bio")
+async def send_bio(bio: BioSanitationPromptSchema) -> BioSanitationPromptSchema:
+    chain = await LLM()
+    sanitized_bio = await chain.ainvoke({"name": bio.person_name, "unverified_bio": bio.person_bio})
+    return sanitized_bio
 
 # model = ChatOpenAI(model="gpt-4o")
 # prompt_template = ChatPromptTemplate.from_template('''
