@@ -28,11 +28,12 @@ load_dotenv('.env')
 #for langchain use v1 model
 #will try to infere name from bio
 class BioSanitationPromptSchema(pydantic.v1.BaseModel):
-    person_name: str
+    analysis_about_person: str
+    rational: str
     sanitized_bio: str
 class BioSanitationFastAPI(pydantic.BaseModel):
     person_name: str
-    sanitized_bio: str
+    unverified_bio: str
 
 
 app = FastAPI()
@@ -66,10 +67,10 @@ async def LLM():
 
 
 @app.post("/shorten/bio")
-async def send_bio(bio: BioSanitationPromptSchema) -> BioSanitationPromptSchema:
-    chain = await LLM()
-    sanitized_bio = await chain.ainvoke({"name": bio.person_name, "unverified_bio": bio.person_bio})
-    return sanitized_bio
+async def send_bio(bio: BioSanitationFastAPI) -> BioSanitationFastAPI:
+    chain = await LLM() ## change later
+    response:BioSanitationPromptSchema = await chain.ainvoke({"name": bio.person_name, "unverified_bio": bio.unverified_bio})
+    return BioSanitationFastAPI(person_name = None, sanitized_bio =response.sanitized_bio)
 
 # model = ChatOpenAI(model="gpt-4o")
 # prompt_template = ChatPromptTemplate.from_template('''
