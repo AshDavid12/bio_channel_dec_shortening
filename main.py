@@ -3,10 +3,13 @@ from fastapi import FastAPI
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, PromptTemplate
-
-import re
-
-from langchain.chains import LLMChain
+from dotenv import load_dotenv
+import uvicorn
+import re, os
+import requests
+load_dotenv('.env')
+# FastAPI instance
+app = FastAPI()
 
 
 
@@ -67,13 +70,17 @@ def LLM() -> BioSanitationPromptSchema:
     chain = prompt | model.with_structured_output(BioSanitationPromptSchema)
     return chain  #Returns the LangChain Pydantic
 
-def create_text_refinement_endpoints(app:FastAPI):
-    chain = LLM()
-    @app.post("/shorten/bio")
-    async def send_bio(bio: BioSanitationFastAPI) -> BioSanitationOutput:
+# def create_text_refinement_endpoints(app:FastAPI):
 
-        response: BioSanitationPromptSchema = await chain.ainvoke(person_name_fast=sanitize_input(bio.person_name_fast),
-                                                                  unverified_bio=sanitize_input(bio.unverified_bio))
-        return BioSanitationOutput(sanitized_only_bio=response.sanitized_bio)
+@app.post("/shorten/bio")
+async def send_bio(bio: BioSanitationFastAPI) -> BioSanitationOutput:
+    chain = LLM()
+    sanitized_name_fast = sanitize_input(bio.person_name_fast)
+    sanitized_bio = sanitize_input(bio.unverified_bio)
+    #with the sanitation the chain needs a dictionary
+    response: BioSanitationPromptSchema = await chain.ainvoke({"person_name_fast":sanitized_name_fast, "unverified_bio":sanitized_bio})
+    # response: BioSanitationPromptSchema = await chain.ainvoke(person_name_fast=sanitize_input(bio.person_name_fast),
+    #                                                           unverified_bio=sanitize_input(bio.unverified_bio))
+    return BioSanitationOutput(sanitized_only_bio=response.sanitized_bio)
 
 
