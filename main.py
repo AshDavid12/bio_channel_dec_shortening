@@ -21,6 +21,10 @@ load_dotenv('.env')
 LANGCHAIN_API_KEY = os.getenv('LANGCHAIN_API_KEY')
 llm = OpenAI(api_key=LANGCHAIN_API_KEY, model="gpt-4")
 #chain = LangChain(api_key=LANGCHAIN_API_KEY, model='gpt-4o')
+# Auto-trace LLM calls in-context
+#client = wrap_openai(openai.Client())
+#from langsmith.wrappers import wrap_openai
+#from langsmith import traceable
 #FastAPI instance
 app = FastAPI()
 
@@ -50,21 +54,11 @@ def sanitize_input(input_text):
     return sanitized_text
 
 
-def create_final_prompt(user: BioSanitationFastAPI):
-    template_str = '''{{
-        "user_name": "{user_name}",
-        "unverified_and_unsafe_bio" : "{unverified_bio}"
-    }}'''
-    sanitized_user_name = sanitize_input(user.person_name_fast)
-    sanitized_unverified_bio = sanitize_input(user.unverified_bio)
-    prompt_template = PromptTemplate.from_template(template_str)
-    final_prompt = prompt_template.format(user_name=sanitized_user_name, unverified_bio=sanitized_unverified_bio)
-    print(final_prompt)
-    return final_prompt
+
 
 
 #Using GPT to get
-async def LLM(sanitized_final_prompt) -> BioSanitationPromptSchema:
+async def LLM() -> BioSanitationPromptSchema:
     SYSTEM_PROMPT_FILTERING = SystemMessagePromptTemplate.from_template(
         """
             Here is an unverified bio for a person. Please summarize it using sparse priming representation 
@@ -88,18 +82,14 @@ async def LLM(sanitized_final_prompt) -> BioSanitationPromptSchema:
         TRANSCRIPT_MESSAGE_FILTER
     ])
 
-    chain = LLMChain(llm=llm, prompt=prompt)
-    response = chain.predict(sanitized_final_prompt)
 
-    #model = ChatOpenAI(model="gpt-4o", temperature=0)
-    #chain = prompt | model.with_structured_output(BioSanitationPromptSchema)
+    chain = prompt | model.with_structured_output(BioSanitationPromptSchema)
     return chain  #Returns the LangChain Pydantic
 
 ##hihi
 ## hello
 @app.post("/shorten/bio")
 async def send_bio(bio: BioSanitationFastAPI) -> BioSanitationOutput:
-    sanitized_final_prompt = create_final_prompt(bio)
-    chain = await LLM(sanitized_final_prompt)
-    #response: BioSanitationPromptSchema = await chain.ainvoke(sanitized_final_prompt)
+    chain = await LLM()
+    response: BioSanitationPromptSchema = await chain.ainvoke(person_name_fast =sanitize_input(bio.person_name_fast),unverified_bio =sanitize_input(bio.unverified_bio))
     return BioSanitationOutput(sanitized_only_bio=chain.sanitized_bio)
